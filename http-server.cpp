@@ -49,7 +49,7 @@ int main() {
       htons(80);  //此处涉及到大端存储和小端存储    一般计算机上都是小端的
                   //网络上一般都是大端的  所以需要将本地字节序转为网络字节序
   int ret;
-  ret = bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+  ret = bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
   if (ret == -1) {
     printf("套接字绑定失败\r\n");
     exit(-1);
@@ -67,11 +67,11 @@ int main() {
   // 5.接收连接
 
   struct sockaddr_in clientAddr;
-  int len_clientAddr = sizeof(clientAddr);
+  socklen_t len_clientAddr = sizeof(clientAddr);
 
   while (1) {
     int clientSocket =
-        accept(serverSocket, (struct sockaddr*)(&clientAddr), &len_clientAddr);
+        accept(serverSocket, (struct sockaddr *)(&clientAddr), &len_clientAddr);
     if (clientSocket == -1) {
       printf("建立客户端连接失败\r\n");
       exit(-1);
@@ -118,17 +118,17 @@ int main() {
       send(clientSocket, sendBuf, strlen(sendBuf), 0);
     } else {
       //找到相关网页文件
-      FILE* fs = fopen(filePath, "r");
+      FILE *fs = fopen(filePath, "r");
       if (fs == NULL) {
         printf("打开网页文件失败\r\n");
         exit(-1);
       } else {
         char dataBuf[1024] = {0};
 
-        sprintf(dataBuf, "HTTP/1.1 200 OK\r\n");
+        sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
         send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-        sprintf(dataBuf, "content-type:text/html\r\n");
+        sprintf(dataBuf, "Location:https://10.0.0.1/index.html\r\n");
         send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
         sprintf(dataBuf, "\r\n");

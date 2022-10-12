@@ -6,7 +6,7 @@ requests.packages.urllib3.disable_warnings()
 test_dir = dirname(realpath(__file__))
 
 # https 200 OK
-r = requests.get('http://127.0.0.1/index.html', verify=False)
+r = requests.get('https://127.0.0.1/index.html', verify=False)
 assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
 
 # http 301
