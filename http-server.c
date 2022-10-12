@@ -153,11 +153,9 @@ int main()
 				sprintf(dataBuf, "\r\n");
 				send(clientSocket, dataBuf, strlen(dataBuf), 0);
  
-				do
-				{
-					fgets(dataBuf, 1024, fs);
-					send(clientSocket, dataBuf, strlen(dataBuf), 0);
-				} while (!feof(fs));
+				while (fgets(dataBuf, 1024, fs) != NULL) {
+          			send(clientSocket, dataBuf, strlen(dataBuf), 0);
+        		}
  
 				fclose(fs);
 			}
