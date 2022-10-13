@@ -8,11 +8,8 @@
             "name": "(gdb) 启动",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/https-server",
-            "args": [
-                "127.0.0.1",
-                "443"
-            ],
+            "program": "${workspaceFolder}/http",
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
