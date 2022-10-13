@@ -19,7 +19,7 @@
 #include <sys/un.h>
 
 #include <string>
-
+#include <iostream>
 #include "assert.h"
 using namespace std;
 
@@ -263,11 +263,29 @@ void* http_server(void* args) {
       // exit(-1);
     } else {
       printf("[+]HTTP服务器成功接收来自客户端的数据！\r\n");
-      // printf("%s\r\n", rev_buffer);
+      printf("%s\r\n", rev_buffer);
+    }
+    // string str = rev_buffer;
+    // char * cstr = new char [str.length()+1];
+    // strcpy (cstr, str.c_str());
+
+    // // cstr now contains a c-string copy of str
+
+    char * p = strtok (rev_buffer," ");
+    int i=0;
+    while (i<1)
+    {
+      // std::cout << p << '\n';
+      p = strtok(NULL," ");
+      i=i+1;
     }
 
+    // delete[] cstr;
+    char * url = strtok (p,"/");
+    // std::cout << url << '\n';
     //给客户发送网页	后续可以根据具体请求，转向不同页面
-    strcpy(filePath, "index.html");
+    strcpy(filePath, url);
+    std::cout << "url:"<<filePath << '\n';
 
     ret = access(filePath,
                  0);  // 0 代表判断文件是否存在  如果存在返回0 否则返回-1
