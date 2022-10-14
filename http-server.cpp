@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+
 #include <iostream>
 #include <string>
 
@@ -241,16 +242,13 @@ void *http_server(void *args) {
       printf("[+]HTTP服务器成功接收来自客户端的数据！\r\n");
       printf("%s\r\n", rev_buffer);
     }
-    截取其中的uri字段
+    //截取其中的uri字段
     char *p = strtok(rev_buffer, " ");
-    int i = 0;
-    while (i < 1) {
-      p = strtok(NULL, " ");
-      i = i + 1;
-    }
-    char *url = strtok(p, "/");
+    p = strtok(NULL, " ");
+    string uri = p;
+    uri = uri.substr(1, uri.length());
     //给客户发送网页	后续可以根据具体请求，转向不同页面
-    strcpy(filePath, "dir/index.html");
+    strcpy(filePath, uri.c_str());
     std::cout << "url:" << filePath << '\n';
 
     ret = access(filePath,
