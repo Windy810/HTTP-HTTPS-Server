@@ -6,20 +6,20 @@ requests.packages.urllib3.disable_warnings()
 test_dir = dirname(realpath(__file__))
 
 # https 200 OK
-r = requests.get('https://127.0.0.1/index.html', verify=False)
-assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
+# r = requests.get('https://127.0.0.1/index.html', verify=False)
+# assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
 
 # http 301
 r = requests.get('http://127.0.0.1/index.html', allow_redirects=False)
-assert(r.status_code == 301 and r.headers['Location'] == 'https://10.0.0.1/index.html')
+assert(r.status_code == 301 and r.headers['Location'] == 'https://127.0.0.1/index.html')
 
 # https 200 OK
-# r = requests.get('https://10.0.0.1/index.html', verify=False)
-# assert(r.status_code == 200 and open(test_dir + '/../index.html', 'rb').read() == r.content)
+r = requests.get('https://127.0.0.1/index.html', verify=False)
+assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
 
 # http 200 OK
-# r = requests.get('http://127.0.0.1/index.html', verify=False)
-# assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
+r = requests.get('http://127.0.0.1/index.html', verify=False)
+assert(r.status_code == 200 and open(test_dir + '/index.html', 'rb').read() == r.content)
 
 # http 404
 r = requests.get('http://127.0.0.1/notfound.html', verify=False)

@@ -1,25 +1,21 @@
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-#include <pthread.h>
-
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
-
-#include <string>
+#include <unistd.h>
 #include <iostream>
+#include <string>
+
 #include "assert.h"
 using namespace std;
 
@@ -56,18 +52,18 @@ bool InitSSL(const char *cacert, const char *key, const char *passwd) {
   return true;
 }
 
-void* https_server(void* args) {
+void *https_server(void *args) {
   string cacert = "cnlab.cert";
   string key = "cnlab.prikey";
   string passwd = "";
   if (!InitSSL(cacert.c_str(), key.c_str(), passwd.c_str())) {
     printf("init ssl error\n");
     return 0;
-  }else{
+  } else {
     printf("HTTPS服务器初始化SSL成功\r\n");
   }
   // ip地址
-  char *ip = (char*)"127.0.0.1";
+  char *ip = (char *)"127.0.0.1";
   //端口
   int port = atoi("443");
   //创建socket,ipv4.tcp
@@ -98,7 +94,7 @@ void* https_server(void* args) {
   if (ret == -1) {
     printf("Listen error %d", ret);
     return NULL;
-  }else{
+  } else {
     printf("HTTPS服务器监听端口443中……\r\n");
   }
   while (1) {
@@ -127,20 +123,6 @@ void* https_server(void* args) {
       printf("[!]ret = %d, ssl get error %d\n", ret, SSL_get_error(ssl, ret));
     }
 
-    // ret = recv(new_con, rev_buffer, sizeof(rev_buffer), 0);
-    // if (ret <= 0) {
-    //   printf("------接收来自客户端的数据失败------\r\n");
-    //   printf("重新进入等待连接状态......\r\n");
-    //   close(new_con);
-    //   continue;
-    //   // exit(-1);
-    // } 
-    // else {
-    //   printf("++++++++++++++++++++++++++++++  HTTPS服务器成功接收来自客户端的数据  ++++++++++++++++++++++\r\n");
-    //   printf("%s\r\n", rev_buffer);
-    // }
-
-    //
     string html_file = "index.html";
     int fd = open(html_file.c_str(), O_RDONLY);
     struct stat file_stat;
@@ -158,13 +140,12 @@ void* https_server(void* args) {
         "\r\n"
         "\r\n";
     buf_w += (char *)html_;
-    //把send换成SSL_write
-    // printf("send %d bytes\n", send(new_con, (void*)buf_w.c_str(),
-    // buf_w.size(), 0));
     SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
     munmap(html_, file_stat.st_size);
     printf("[+]状态码：200 OK\r\n");
-    printf("------------------------HTTPS服务器成功响应,返回了所请求的HTML信息！------------------------\n");
+    printf(
+        "------------------------HTTPS服务器成功响应,返回了所请求的HTML信息！--"
+        "----------------------\n");
 
     //关闭
     SSL_shutdown(ssl);
@@ -175,9 +156,6 @@ void* https_server(void* args) {
   SSL_CTX_free(ctx);
   return 0;
 }
-
-
-
 
 /**
  * 主要步骤：
@@ -190,7 +168,7 @@ void* https_server(void* args) {
  * 7.关闭连接，关闭网络库
  **/
 
-void* http_server(void* args) {
+void *http_server(void *args) {
   struct sockaddr_in serverAddr;
   //============================================================================
   // 2.创建socket
@@ -235,11 +213,9 @@ void* http_server(void* args) {
 
   //============================================================================
   // 5.接收连接
-
-  struct sockaddr_in clientAddr;
-  socklen_t len_clientAddr = sizeof(clientAddr);
-
   while (1) {
+    struct sockaddr_in clientAddr;
+    socklen_t len_clientAddr = sizeof(clientAddr);
     int clientSocket =
         accept(serverSocket, (struct sockaddr *)(&clientAddr), &len_clientAddr);
     if (clientSocket == -1) {
@@ -265,27 +241,17 @@ void* http_server(void* args) {
       printf("[+]HTTP服务器成功接收来自客户端的数据！\r\n");
       printf("%s\r\n", rev_buffer);
     }
-    // string str = rev_buffer;
-    // char * cstr = new char [str.length()+1];
-    // strcpy (cstr, str.c_str());
-
-    // // cstr now contains a c-string copy of str
-
-    char * p = strtok (rev_buffer," ");
-    int i=0;
-    while (i<1)
-    {
-      // std::cout << p << '\n';
-      p = strtok(NULL," ");
-      i=i+1;
+    截取其中的uri字段
+    char *p = strtok(rev_buffer, " ");
+    int i = 0;
+    while (i < 1) {
+      p = strtok(NULL, " ");
+      i = i + 1;
     }
-
-    // delete[] cstr;
-    char * url = strtok (p,"/");
-    // std::cout << url << '\n';
+    char *url = strtok(p, "/");
     //给客户发送网页	后续可以根据具体请求，转向不同页面
-    strcpy(filePath, url);
-    std::cout << "url:"<<filePath << '\n';
+    strcpy(filePath, "dir/index.html");
+    std::cout << "url:" << filePath << '\n';
 
     ret = access(filePath,
                  0);  // 0 代表判断文件是否存在  如果存在返回0 否则返回-1
@@ -301,7 +267,11 @@ void* http_server(void* args) {
 
       sprintf(sendBuf, "\r\n");
       send(clientSocket, sendBuf, strlen(sendBuf), 0);
-      printf("状态码：404 NOT FOUND\r\n");
+      printf("[!]状态码：404 NOT FOUND\r\n");
+      printf(
+          "------------------------HTTP服务器成功响应！------------------------"
+          "\r\n");
+      // printf("sendBuf: %s\r\n", sendBuf);
     } else {
       //找到相关网页文件
       FILE *fs = fopen(filePath, "r");
@@ -314,7 +284,7 @@ void* http_server(void* args) {
         sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
         send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-        sprintf(dataBuf, "Location:https://10.0.0.1/index.html\r\n");
+        sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
         send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
         sprintf(dataBuf, "\r\n");
@@ -324,13 +294,14 @@ void* http_server(void* args) {
           send(clientSocket, dataBuf, strlen(dataBuf), 0);
         }
         printf("[+]状态码：301 Moved Permanently\r\n");
-        printf("------------------------HTTP服务器成功响应！------------------------\r\n");
+        printf(
+            "------------------------HTTP服务器成功响应！----------------------"
+            "--\r\n");
 
         fclose(fs);
       }
     }
     close(clientSocket);  //发送完直接关闭  因为HTTP协议是无连接的
-    return 0;
   }
 
   // 7.关闭连接，清理网络库
@@ -339,18 +310,22 @@ void* http_server(void* args) {
   return NULL;
 }
 
-int main(){
+int main() {
   pthread_t th1;
-	pthread_t th2;
-	int res;
-	res = pthread_create(&th1,NULL,http_server,NULL);
+  pthread_t th2;
+  int res;
+  res = pthread_create(&th1, NULL, http_server, NULL);
   if (res == 0) {
-      printf("==================================HTTP服务器线程创建成功=======================================\n");
-    }
-	res = pthread_create(&th2,NULL,https_server,NULL);
+    printf(
+        "==================================HTTP服务器线程创建成功=============="
+        "=========================\n");
+  }
+  res = pthread_create(&th2, NULL, https_server, NULL);
   if (res == 0) {
-      printf("==================================HTTPS服务器线程创建成功======================================\n");
+    printf(
+        "==================================HTTPS服务器线程创建成功============="
+        "=========================\n");
   }
 
-  pthread_join(th2,NULL);
+  pthread_join(th2, NULL);
 }
