@@ -168,7 +168,25 @@ void *https_server(void *args) {
  * 6.处理连接请求
  * 7.关闭连接，关闭网络库
  **/
-
+int exist_range(char **range1, char **range2) {
+  char tmp_buffer[1024];
+  memcpy(tmp_buffer, rev_buffer, 1024);
+  char *k = strtok(tmp_buffer, "\r\n");
+  char const *b = "Range";
+  // std::cout << "pre-info：" << k << '\n';
+  while (k) {
+    if (strstr(k, b) != NULL) {
+      k = strtok(k, "=");
+      *range1 = strtok(NULL, "-");
+      // std::cout << "range1：" << range1 << '\n';
+      *range2 = strtok(NULL, "");
+      // std::cout << "range2：" << range2 << '\n';
+      return 1;
+    }
+    k = strtok(NULL, "\r\n");
+  }
+  return 0;
+}
 void *http_server(void *args) {
   struct sockaddr_in serverAddr;
   //============================================================================
@@ -240,16 +258,20 @@ void *http_server(void *args) {
       // exit(-1);
     } else {
       printf("[+]HTTP服务器成功接收来自客户端的数据！\r\n");
-      printf("%s\r\n", rev_buffer);
+      // printf("%s\r\n", rev_buffer);
+      // std::cout << "rev_buffer：" << rev_buffer << '\n';
     }
-    //截取其中的uri字段
-    char *p = strtok(rev_buffer, " ");
+    char tmp_buffer[1024];
+    memcpy(tmp_buffer, rev_buffer, 1024);
+    //划分request报文字段
+    char *p = strtok(tmp_buffer, " ");
     p = strtok(NULL, " ");
     string uri = p;
     uri = uri.substr(1, uri.length());
+
     //给客户发送网页	后续可以根据具体请求，转向不同页面
     strcpy(filePath, uri.c_str());
-    std::cout << "url:" << filePath << '\n';
+    // std::cout << "url:" << filePath << '\n';
 
     ret = access(filePath,
                  0);  // 0 代表判断文件是否存在  如果存在返回0 否则返回-1
@@ -277,26 +299,64 @@ void *http_server(void *args) {
         printf("打开网页文件失败\r\n");
         exit(-1);
       } else {
-        char dataBuf[1024] = {0};
+        char *range1;
+        char *range2;
+        int re = exist_range(&range1, &range2);
+        // std::cout << "re:" << re << '\n';
+        if (re == 1) {
+          char dataBuf[1024] = {0};
 
-        sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
-        send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-        sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
-        send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-        sprintf(dataBuf, "\r\n");
-        send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-        while (fgets(dataBuf, 1024, fs) != NULL) {
+          sprintf(dataBuf, "HTTP/1.1 206 Partial Content\r\n");
           send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+          sprintf(dataBuf, "\r\n");
+          send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+          int left = atoi(range1);
+          // std::cout << "left:" << left << '\n';
+
+          for (int i = 0; i < left; i = i + 100) {
+            fgets(dataBuf, 101, fs);
+            // std::cout << "dataBuf1:" << dataBuf << '\n';
+          }
+          if (range2 == NULL) {
+            while (fgets(dataBuf, 1024, fs) != NULL) {
+              // std::cout << "dataBuf2:" << dataBuf << '\n';
+              send(clientSocket, dataBuf, strlen(dataBuf), 0);
+            }
+
+          } else {
+            int right = atoi(range2);
+            for (int i = left; i < right + 1; i = i + 1) {
+              // cout << typeid(atoi(range1)).name() <<atoi(range1)<< endl;
+              fgets(dataBuf, 2, fs);
+              // std::cout << "dataBuf3:" << dataBuf<<'\n';
+              // std::cout << "str:"<<strlen(dataBuf);
+              send(clientSocket, dataBuf, strlen(dataBuf), 0);
+            }
+          }
+          fclose(fs);
+          printf("[+]状态码：206 Partial Content\r\n");
+        } else {
+          char dataBuf[1024] = {0};
+
+          sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
+          send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+          sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
+          send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+          sprintf(dataBuf, "\r\n");
+          send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+          while (fgets(dataBuf, 1024, fs) != NULL) {
+            send(clientSocket, dataBuf, strlen(dataBuf), 0);
+          }
+          printf("[+]状态码：301 Moved Permanently\r\n");
         }
-        printf("[+]状态码：301 Moved Permanently\r\n");
         printf(
             "------------------------HTTP服务器成功响应！----------------------"
             "--\r\n");
-
-        fclose(fs);
       }
     }
     close(clientSocket);  //发送完直接关闭  因为HTTP协议是无连接的
