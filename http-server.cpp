@@ -123,31 +123,24 @@ void *https_server(void *args) {
       printf("%s\n", SSL_state_string_long(ssl));
       printf("[!]ret = %d, ssl get error %d\n", ret, SSL_get_error(ssl, ret));
     }
-
-    string html_file = "index.html";
+    std::string html_file = "index.html";
     int fd = open(html_file.c_str(), O_RDONLY);
-    struct stat file_stat;
-    stat(html_file.c_str(), &file_stat);
-    void *html_ =
-        mmap(nullptr, file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
-    string buf_w =
+    std::string buf_w =
         "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/html; charset=UTF-8\r\n"
-        "Connection: close\r\n"
-        "Date: Fri, 23 Nov 2018 02:01:05 GMT\r\n"
-        "Content-Length: " +
-        to_string(file_stat.st_size) +
-        "\r\n"
         "\r\n";
-    buf_w += (char *)html_;
     SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
-    munmap(html_, file_stat.st_size);
+    char acBuf[1024] = {0};
+    int sz = 1024;
+    while (sz = read(fd, acBuf, sz)) {
+      SSL_write(ssl, acBuf, sz);
+      memset(acBuf, 0, sizeof(acBuf));
+    }
     printf("[+]状态码：200 OK\r\n");
     printf(
         "------------------------HTTPS服务器成功响应,返回了所请求的HTML信息！--"
         "----------------------\n");
-
+    sleep(1);
     //关闭
     SSL_shutdown(ssl);
     SSL_free(ssl);
@@ -158,16 +151,7 @@ void *https_server(void *args) {
   return 0;
 }
 
-/**
- * 主要步骤：
- * 1.初始化网络库
- * 2.创建socket
- * 3.绑定IP地址和端口号
- * 4.监听连接
- * 5.接收连接
- * 6.处理连接请求
- * 7.关闭连接，关闭网络库
- **/
+//判断client发送的包是否存在Range参数
 int exist_range(char **range1, char **range2) {
   char tmp_buffer[1024];
   memcpy(tmp_buffer, rev_buffer, 1024);
@@ -187,6 +171,17 @@ int exist_range(char **range1, char **range2) {
   }
   return 0;
 }
+
+/**
+ * 主要步骤：
+ * 1.初始化网络库
+ * 2.创建socket
+ * 3.绑定IP地址和端口号
+ * 4.监听连接
+ * 5.接收连接
+ * 6.处理连接请求
+ * 7.关闭连接，关闭网络库
+ **/
 void *http_server(void *args) {
   struct sockaddr_in serverAddr;
   //============================================================================
@@ -244,6 +239,7 @@ void *http_server(void *args) {
       printf("[+]HTTP服务器成功建立客户端连接\r\n");
     }
 
+    //============================================================================
     // 6.处理连接请求
     //从clientSocket接受数据
 
@@ -263,11 +259,18 @@ void *http_server(void *args) {
     }
     char tmp_buffer[1024];
     memcpy(tmp_buffer, rev_buffer, 1024);
-    //划分request报文字段
+
+    //划分request报文字段，取出请求的uri
     char *p = strtok(tmp_buffer, " ");
     p = strtok(NULL, " ");
+    // std::cout << "url:" << p << '\n';
     string uri = p;
     uri = uri.substr(1, uri.length());
+
+    //取出请求的文件类型
+    char *filetype = strtok(p, ".");
+    filetype = strtok(NULL, ".");
+    // std::cout << "filetype:" << filetype << '\n';
 
     //给客户发送网页	后续可以根据具体请求，转向不同页面
     strcpy(filePath, uri.c_str());
@@ -302,8 +305,8 @@ void *http_server(void *args) {
         char *range1;
         char *range2;
         int re = exist_range(&range1, &range2);
-        // std::cout << "re:" << re << '\n';
-        if (re == 1) {
+        std::cout << "re:" << re << '\n';
+        if (re == 1 && strcmp(filetype, "mp4") != 0) {
           char dataBuf[1024] = {0};
 
           sprintf(dataBuf, "HTTP/1.1 206 Partial Content\r\n");
@@ -314,17 +317,30 @@ void *http_server(void *args) {
 
           int left = atoi(range1);
           // std::cout << "left:" << left << '\n';
-
-          for (int i = 0; i < left; i = i + 100) {
-            fgets(dataBuf, 101, fs);
-            // std::cout << "dataBuf1:" << dataBuf << '\n';
+          if (left > 0) {
+            for (int i = 0; i < left; i = i + 1) {
+              fgets(dataBuf, 2, fs);
+              // std::cout << "dataBuf1:" << dataBuf << '\n';
+            }
           }
+
           if (range2 == NULL) {
             while (fgets(dataBuf, 1024, fs) != NULL) {
-              // std::cout << "dataBuf2:" << dataBuf << '\n';
+              // std::cout << "filetype:" << filetype << '\n';
+              // if(strcmp(filetype,"mp4")==0){
+              //   int fd = open(filePath, O_RDONLY);
+              //   char acBuf[1024] = {0};
+              //   int sz=1024;
+              //   while (sz=read(fd, acBuf, sz))
+              //   {
+              //     send(clientSocket, acBuf, sz, 0);
+              //     memset(acBuf,0,sizeof(acBuf));
+              //   }
+              //   break;
+              // }else{
               send(clientSocket, dataBuf, strlen(dataBuf), 0);
+              // }
             }
-
           } else {
             int right = atoi(range2);
             for (int i = left; i < right + 1; i = i + 1) {
@@ -335,24 +351,42 @@ void *http_server(void *args) {
               send(clientSocket, dataBuf, strlen(dataBuf), 0);
             }
           }
+          sleep(2);
           fclose(fs);
           printf("[+]状态码：206 Partial Content\r\n");
         } else {
           char dataBuf[1024] = {0};
-
-          sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
-          send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-          sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
-          send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-          sprintf(dataBuf, "\r\n");
-          send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-          while (fgets(dataBuf, 1024, fs) != NULL) {
+          // while (fgets(dataBuf, 1024, fs) != NULL) {
+          //   send(clientSocket, dataBuf, strlen(dataBuf), 0);
+          // }
+          if (strcmp(filetype, "mp4") == 0) {
+            sprintf(dataBuf, "HTTP/1.1 200 OK\r\n");
             send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+            sprintf(dataBuf, "\r\n");
+            send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+            std::cout << "filePath:" << filePath << '\n';
+            int fd = open(filePath, O_RDONLY);
+            char acBuf[1024] = {0};
+            int sz = 1024;
+            while (sz = read(fd, acBuf, sz)) {
+              send(clientSocket, acBuf, sz, 0);
+              // std::cout << "acBuf:" << acBuf << '\n';
+              memset(acBuf, 0, sizeof(acBuf));
+            }
+            printf("[+]状态码：200 OK，HTTP传输视频成功\r\n");
+          } else {
+            sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
+            send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+            sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
+            send(clientSocket, dataBuf, strlen(dataBuf), 0);
+
+            sprintf(dataBuf, "\r\n");
+            send(clientSocket, dataBuf, strlen(dataBuf), 0);
+            printf("[+]状态码：301 Moved Permanently\r\n");
           }
-          printf("[+]状态码：301 Moved Permanently\r\n");
         }
         printf(
             "------------------------HTTP服务器成功响应！----------------------"

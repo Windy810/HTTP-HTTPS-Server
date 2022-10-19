@@ -34,3 +34,14 @@ assert(r.status_code == 206 and open(test_dir + '/index.html', 'rb').read()[100:
 headers = { 'Range': 'bytes=100-' }
 r = requests.get('http://127.0.0.1/index.html', headers=headers, verify=False)
 assert(r.status_code == 206 and open(test_dir + '/index.html', 'rb').read()[100:] == r.content)
+
+# http video
+headers = { 'Range': 'bytes=0-' }
+r = requests.get('http://127.0.0.1/video.mp4', headers=headers, verify=False)
+# print(open(test_dir + '/video.mp4', 'rb').read()[-100:])
+# print(r.content[-100:])
+assert(r.status_code == 200 and open(test_dir + '/video.mp4', 'rb').read()[0:] == r.content)
+
+# TO DO:https video
+# r = requests.get('https://127.0.0.1/video.mp4', verify=False)
+# assert(r.status_code == 200 and open(test_dir + '/video.mp4', 'rb').read() == r.content)
