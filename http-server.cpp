@@ -305,7 +305,7 @@ void *http_server(void *args) {
         char *range1;
         char *range2;
         int re = exist_range(&range1, &range2);
-        std::cout << "re:" << re << '\n';
+        // std::cout << "re:" << re << '\n';
         if (re == 1 && strcmp(filetype, "mp4") != 0) {
           char dataBuf[1024] = {0};
 
@@ -326,20 +326,7 @@ void *http_server(void *args) {
 
           if (range2 == NULL) {
             while (fgets(dataBuf, 1024, fs) != NULL) {
-              // std::cout << "filetype:" << filetype << '\n';
-              // if(strcmp(filetype,"mp4")==0){
-              //   int fd = open(filePath, O_RDONLY);
-              //   char acBuf[1024] = {0};
-              //   int sz=1024;
-              //   while (sz=read(fd, acBuf, sz))
-              //   {
-              //     send(clientSocket, acBuf, sz, 0);
-              //     memset(acBuf,0,sizeof(acBuf));
-              //   }
-              //   break;
-              // }else{
               send(clientSocket, dataBuf, strlen(dataBuf), 0);
-              // }
             }
           } else {
             int right = atoi(range2);
@@ -366,7 +353,7 @@ void *http_server(void *args) {
             sprintf(dataBuf, "\r\n");
             send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-            std::cout << "filePath:" << filePath << '\n';
+            // std::cout << "filePath:" << filePath << '\n';
             int fd = open(filePath, O_RDONLY);
             char acBuf[1024] = {0};
             int sz = 1024;
