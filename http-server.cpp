@@ -21,9 +21,32 @@
 using namespace std;
 
 char rev_buffer[1024];  //接收信息缓冲区
-char filePath[128];     //网页文件路径
+char req[1024];
+char filePath[128];  //网页文件路径
 
 SSL_CTX *ctx = NULL;
+//判断client发送的包是否存在Range参数
+int exist_range(char **range1, char **range2) {
+  char tmp_buffer[1024];
+  // std::cout << "ssl_req:" << req << '\n';
+  memcpy(tmp_buffer, req, 1024);
+  char *k = strtok(tmp_buffer, "\r\n");
+  char const *b = "Range";
+  // std::cout << "pre-info：" << k << '\n';
+  while (k) {
+    if (strstr(k, b) != NULL) {
+      k = strtok(k, "=");
+      *range1 = strtok(NULL, "-");
+      // std::cout << "range1：" << *range1 << '\n';
+      *range2 = strtok(NULL, "");
+      // std::cout << "range2：" << *range2 << '\n';
+      return 1;
+    }
+    k = strtok(NULL, "\r\n");
+  }
+  return 0;
+}
+
 bool InitSSL(const char *cacert, const char *key, const char *passwd) {
   // 初始化
   SSLeay_add_ssl_algorithms();
@@ -123,52 +146,145 @@ void *https_server(void *args) {
       printf("%s\n", SSL_state_string_long(ssl));
       printf("[!]ret = %d, ssl get error %d\n", ret, SSL_get_error(ssl, ret));
     }
-    std::string html_file = "index.html";
-    int fd = open(html_file.c_str(), O_RDONLY);
+    //解析请求
 
-    std::string buf_w =
-        "HTTP/1.1 200 OK\r\n"
-        "\r\n";
-    SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
-    char acBuf[1024] = {0};
-    int sz = 1024;
-    while (sz = read(fd, acBuf, sz)) {
-      SSL_write(ssl, acBuf, sz);
-      memset(acBuf, 0, sizeof(acBuf));
+    SSL_read(ssl, req, sizeof(req));
+    // std::cout << "ssl_req:" << req << '\n';
+
+    char tmp_buffer[1024];
+    memcpy(tmp_buffer, req, 1024);
+
+    //划分request报文字段，取出请求的uri
+    char *p = strtok(tmp_buffer, " ");
+    p = strtok(NULL, " ");
+    // std::cout << "url:" << p << '\n';
+    string uri = p;
+    uri = uri.substr(1, uri.length());
+
+    //取出请求的文件类型
+    char *filetype = strtok(p, ".");
+    filetype = strtok(NULL, ".");
+    // std::cout << "filetype:" << filetype << '\n';
+
+    //给客户发送网页	后续可以根据具体请求，转向不同页面
+    strcpy(filePath, uri.c_str());
+    // std::cout << "url:" << filePath << '\n';
+
+    // std::string html_file = "index.html";
+    // int fd = open(filePath, O_RDONLY);
+    ret = access(filePath,
+                 0);  // 0 代表判断文件是否存在  如果存在返回0 否则返回-1
+    if (ret != 0) {
+      //未找到文件
+      char sendBuf[1024] = {0};
+
+      sprintf(sendBuf, "HTTP/1.1 404 NOT FOUND\r\n");
+      SSL_write(ssl, sendBuf, sizeof(sendBuf));
+
+      sprintf(sendBuf, "Content-type:text/html\r\n");
+      SSL_write(ssl, sendBuf, sizeof(sendBuf));
+
+      sprintf(sendBuf, "\r\n");
+      SSL_write(ssl, sendBuf, sizeof(sendBuf));
+      printf("[!]状态码：404 NOT FOUND\r\n");
+      printf(
+          "------------------------HTTPS服务器成功响应！-----------------------"
+          "-"
+          "\r\n");
+      // printf("sendBuf: %s\r\n", sendBuf);
+    } else {
+      //找到相关网页文件
+      int fd = open(filePath, O_RDONLY);
+      if (fd == -1) {
+        printf("打开网页文件失败\r\n");
+      } else {
+        char *range1;
+        char *range2;
+        int re = exist_range(&range1, &range2);
+        // std::cout << "11range2:" << atoi(range2) << '\n';
+        // std::cout << "re:" << re << '\n';
+        int left = atoi(range1);
+        // std::cout << "22range2:" << atoi(range2) << '\n';
+        // std::cout << "left:" << left << '\n';
+        exist_range(&range1, &range2);
+        int right = 0;
+        if (range2 != NULL) {
+          right = atoi(range2);
+        }
+        // std::cout << "right:" << right << '\n';
+
+        if (re == 1) {
+          char dataBuf[1024] = {0};
+
+          sprintf(dataBuf, "HTTP/1.1 206 Partial Content\r\n");
+          SSL_write(ssl, dataBuf, sizeof(dataBuf));
+
+          sprintf(dataBuf, "\r\n");
+          SSL_write(ssl, dataBuf, sizeof(dataBuf));
+
+          int sz = 10;
+          int fsz = 0;
+          // std::cout << "left:" << left << '\n';
+          if (left > 0) {
+            while (fsz<left) {
+              sz = read(fd, dataBuf, sz);
+              // std::cout << "del-dataBuf:" << dataBuf << '\n';
+              memset(dataBuf, 0, sizeof(dataBuf));
+              fsz=fsz+sz;
+            }
+          }
+
+          if (range2 == NULL) {
+            // read(fd, dataBuf, sz);
+            // std::cout << "dataBuf:" << dataBuf << '\n';
+            sz=10;
+            while (sz = read(fd, dataBuf, sz)) {
+              // std::cout << "dataBuf1:" << dataBuf << '\n';
+              // std::cout << "sz:" << sz << '\n';
+              int sr = SSL_write(ssl, dataBuf, sz);
+              // std::cout << "sr:" << sr << '\n';
+              memset(dataBuf, 0, sizeof(dataBuf));
+            }
+          } else {
+            int range = 1;
+            fsz = left;
+            while (fsz <= right) {
+              range = read(fd, dataBuf, range);
+              std::cout << "dataBuf:" << dataBuf << '\n';
+              SSL_write(ssl, dataBuf, range);
+              memset(dataBuf, 0, range);
+              fsz = fsz + range;
+              std::cout << "range:" << range << '\n';
+            }
+          }
+          sleep(2);
+          printf("[+]状态码：206 Partial Content\r\n");
+        } else {
+          std::string buf_w =
+              "HTTP/1.1 200 OK\r\n"
+              "\r\n";
+          SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
+          char acBuf[1024] = {0};
+          int sz = 1024;
+          while (sz = read(fd, acBuf, sz)) {
+            SSL_write(ssl, acBuf, sz);
+            memset(acBuf, 0, sizeof(acBuf));
+          }
+          printf("[+]状态码：200 OK\r\n");
+          printf(
+              "------------------------HTTPS服务器成功响应,"
+              "返回了所请求的HTML信息！--"
+              "----------------------\n");
+        }
+      }
     }
-    printf("[+]状态码：200 OK\r\n");
-    printf(
-        "------------------------HTTPS服务器成功响应,返回了所请求的HTML信息！--"
-        "----------------------\n");
     sleep(1);
     //关闭
     SSL_shutdown(ssl);
     SSL_free(ssl);
     close(new_con);
   }
-
   SSL_CTX_free(ctx);
-  return 0;
-}
-
-//判断client发送的包是否存在Range参数
-int exist_range(char **range1, char **range2) {
-  char tmp_buffer[1024];
-  memcpy(tmp_buffer, rev_buffer, 1024);
-  char *k = strtok(tmp_buffer, "\r\n");
-  char const *b = "Range";
-  // std::cout << "pre-info：" << k << '\n';
-  while (k) {
-    if (strstr(k, b) != NULL) {
-      k = strtok(k, "=");
-      *range1 = strtok(NULL, "-");
-      // std::cout << "range1：" << range1 << '\n';
-      *range2 = strtok(NULL, "");
-      // std::cout << "range2：" << range2 << '\n';
-      return 1;
-    }
-    k = strtok(NULL, "\r\n");
-  }
   return 0;
 }
 
@@ -267,119 +383,29 @@ void *http_server(void *args) {
     string uri = p;
     uri = uri.substr(1, uri.length());
 
-    //取出请求的文件类型
-    char *filetype = strtok(p, ".");
-    filetype = strtok(NULL, ".");
-    // std::cout << "filetype:" << filetype << '\n';
-
     //给客户发送网页	后续可以根据具体请求，转向不同页面
     strcpy(filePath, uri.c_str());
     // std::cout << "url:" << filePath << '\n';
 
-    ret = access(filePath,
-                 0);  // 0 代表判断文件是否存在  如果存在返回0 否则返回-1
-    if (ret != 0) {
-      //未找到文件
-      char sendBuf[1024] = {0};
+    FILE *fs = fopen(filePath, "r");
 
-      sprintf(sendBuf, "HTTP/1.1 404 NOT FOUND\r\n");
-      send(clientSocket, sendBuf, strlen(sendBuf), 0);
+    char dataBuf[1024];
+    sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
+    send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-      sprintf(sendBuf, "Content-type:text/html\r\n");
-      send(clientSocket, sendBuf, strlen(sendBuf), 0);
+    sprintf(dataBuf, "Location:https://127.0.0.1/");
+    send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-      sprintf(sendBuf, "\r\n");
-      send(clientSocket, sendBuf, strlen(sendBuf), 0);
-      printf("[!]状态码：404 NOT FOUND\r\n");
-      printf(
-          "------------------------HTTP服务器成功响应！------------------------"
-          "\r\n");
-      // printf("sendBuf: %s\r\n", sendBuf);
-    } else {
-      //找到相关网页文件
-      FILE *fs = fopen(filePath, "r");
-      if (fs == NULL) {
-        printf("打开网页文件失败\r\n");
-        exit(-1);
-      } else {
-        char *range1;
-        char *range2;
-        int re = exist_range(&range1, &range2);
-        // std::cout << "re:" << re << '\n';
-        if (re == 1 && strcmp(filetype, "mp4") != 0) {
-          char dataBuf[1024] = {0};
+    sprintf(dataBuf, filePath);
+    send(clientSocket, dataBuf, strlen(dataBuf), 0);
 
-          sprintf(dataBuf, "HTTP/1.1 206 Partial Content\r\n");
-          send(clientSocket, dataBuf, strlen(dataBuf), 0);
+    sprintf(dataBuf, "\r\n\r\n");
+    send(clientSocket, dataBuf, strlen(dataBuf), 0);
+    printf("[+]状态码：301 Moved Permanently\r\n");
 
-          sprintf(dataBuf, "\r\n");
-          send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-          int left = atoi(range1);
-          // std::cout << "left:" << left << '\n';
-          if (left > 0) {
-            for (int i = 0; i < left; i = i + 1) {
-              fgets(dataBuf, 2, fs);
-              // std::cout << "dataBuf1:" << dataBuf << '\n';
-            }
-          }
-
-          if (range2 == NULL) {
-            while (fgets(dataBuf, 1024, fs) != NULL) {
-              send(clientSocket, dataBuf, strlen(dataBuf), 0);
-            }
-          } else {
-            int right = atoi(range2);
-            for (int i = left; i < right + 1; i = i + 1) {
-              // cout << typeid(atoi(range1)).name() <<atoi(range1)<< endl;
-              fgets(dataBuf, 2, fs);
-              // std::cout << "dataBuf3:" << dataBuf<<'\n';
-              // std::cout << "str:"<<strlen(dataBuf);
-              send(clientSocket, dataBuf, strlen(dataBuf), 0);
-            }
-          }
-          sleep(2);
-          fclose(fs);
-          printf("[+]状态码：206 Partial Content\r\n");
-        } else {
-          char dataBuf[1024] = {0};
-          // while (fgets(dataBuf, 1024, fs) != NULL) {
-          //   send(clientSocket, dataBuf, strlen(dataBuf), 0);
-          // }
-          if (strcmp(filetype, "mp4") == 0) {
-            sprintf(dataBuf, "HTTP/1.1 200 OK\r\n");
-            send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-            sprintf(dataBuf, "\r\n");
-            send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-            // std::cout << "filePath:" << filePath << '\n';
-            int fd = open(filePath, O_RDONLY);
-            char acBuf[1024] = {0};
-            int sz = 1024;
-            while (sz = read(fd, acBuf, sz)) {
-              send(clientSocket, acBuf, sz, 0);
-              // std::cout << "acBuf:" << acBuf << '\n';
-              memset(acBuf, 0, sizeof(acBuf));
-            }
-            printf("[+]状态码：200 OK，HTTP传输视频成功\r\n");
-          } else {
-            sprintf(dataBuf, "HTTP/1.1 301 Moved Permanently\r\n");
-            send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-            sprintf(dataBuf, "Location:https://127.0.0.1/index.html\r\n");
-            send(clientSocket, dataBuf, strlen(dataBuf), 0);
-
-            sprintf(dataBuf, "\r\n");
-            send(clientSocket, dataBuf, strlen(dataBuf), 0);
-            printf("[+]状态码：301 Moved Permanently\r\n");
-          }
-        }
-        printf(
-            "------------------------HTTP服务器成功响应！----------------------"
-            "--\r\n");
-      }
-    }
+    printf(
+        "------------------------HTTP服务器成功响应！----------------------"
+        "--\r\n");
     close(clientSocket);  //发送完直接关闭  因为HTTP协议是无连接的
   }
 
