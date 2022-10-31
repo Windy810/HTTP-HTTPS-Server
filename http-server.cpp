@@ -196,9 +196,11 @@ void *https_server(void *args) {
         char *range1;
         char *range2;
         int re = exist_range(&range1, &range2);
-        // std::cout << "11range2:" << atoi(range2) << '\n';
-        std::cout << "re:" << re << '\n';
-
+        int left = atoi(range1);
+        int right;
+        if (range2 != NULL) {
+          right = atoi(range2);
+        }
 
         if (re == 1) {
           char dataBuf[1024] = {0};
@@ -210,30 +212,27 @@ void *https_server(void *args) {
 
           int sz = 10;
           int fsz = 0;
-          int left = atoi(range1);
           std::cout << "left:" << left << '\n';
+          std::cout << "range1:" << range1 << '\n';
           if (left > 0) {
-            while (fsz<left) {
+            while (fsz < left) {
               sz = read(fd, dataBuf, sz);
               // std::cout << "del-dataBuf:" << dataBuf << '\n';
-              memset(dataBuf, 0, sizeof(dataBuf));
-              fsz=fsz+sz;
+              fsz = fsz + sz;
             }
           }
 
           if (range2 == NULL) {
             // read(fd, dataBuf, sz);
             // std::cout << "dataBuf:" << dataBuf << '\n';
-            sz=10;
+            sz = 10;
             while (sz = read(fd, dataBuf, sz)) {
               // std::cout << "dataBuf1:" << dataBuf << '\n';
               // std::cout << "sz:" << sz << '\n';
               int sr = SSL_write(ssl, dataBuf, sz);
               // std::cout << "sr:" << sr << '\n';
-              memset(dataBuf, 0, sizeof(dataBuf));
             }
           } else {
-            int right = atoi(range2);
             std::cout << "right:" << right << '\n';
             int range = 1;
             fsz = left;
@@ -241,7 +240,6 @@ void *https_server(void *args) {
               range = read(fd, dataBuf, range);
               std::cout << "dataBuf:" << dataBuf << '\n';
               SSL_write(ssl, dataBuf, range);
-              memset(dataBuf, 0, range);
               fsz = fsz + range;
               std::cout << "range:" << range << '\n';
             }
@@ -260,7 +258,7 @@ void *https_server(void *args) {
             SSL_write(ssl, acBuf, sz);
             // std::cout << "acBuf:" << acBuf << '\n';
           }
-          
+
           printf(
               "------------------------HTTPS服务器成功响应,"
               "返回了所请求的HTML信息！--"
