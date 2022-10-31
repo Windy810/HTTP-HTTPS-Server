@@ -37,9 +37,9 @@ int exist_range(char **range1, char **range2) {
     if (strstr(k, b) != NULL) {
       k = strtok(k, "=");
       *range1 = strtok(NULL, "-");
-      // std::cout << "range1：" << *range1 << '\n';
+      std::cout << "range1：" << *range1 << '\n';
       *range2 = strtok(NULL, "");
-      // std::cout << "range2：" << *range2 << '\n';
+      std::cout << "range2：" << *range2 << '\n';
       return 1;
     }
     k = strtok(NULL, "\r\n");
@@ -161,11 +161,6 @@ void *https_server(void *args) {
     string uri = p;
     uri = uri.substr(1, uri.length());
 
-    //取出请求的文件类型
-    char *filetype = strtok(p, ".");
-    filetype = strtok(NULL, ".");
-    // std::cout << "filetype:" << filetype << '\n';
-
     //给客户发送网页	后续可以根据具体请求，转向不同页面
     strcpy(filePath, uri.c_str());
     // std::cout << "url:" << filePath << '\n';
@@ -202,29 +197,21 @@ void *https_server(void *args) {
         char *range2;
         int re = exist_range(&range1, &range2);
         // std::cout << "11range2:" << atoi(range2) << '\n';
-        // std::cout << "re:" << re << '\n';
-        int left = atoi(range1);
-        // std::cout << "22range2:" << atoi(range2) << '\n';
-        // std::cout << "left:" << left << '\n';
-        exist_range(&range1, &range2);
-        int right = 0;
-        if (range2 != NULL) {
-          right = atoi(range2);
-        }
-        // std::cout << "right:" << right << '\n';
+        std::cout << "re:" << re << '\n';
+
 
         if (re == 1) {
           char dataBuf[1024] = {0};
 
-          sprintf(dataBuf, "HTTP/1.1 206 Partial Content\r\n");
-          SSL_write(ssl, dataBuf, sizeof(dataBuf));
-
-          sprintf(dataBuf, "\r\n");
-          SSL_write(ssl, dataBuf, sizeof(dataBuf));
+          std::string buf_w =
+              "HTTP/1.1 206 Partial Content\r\n"
+              "\r\n";
+          SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
 
           int sz = 10;
           int fsz = 0;
-          // std::cout << "left:" << left << '\n';
+          int left = atoi(range1);
+          std::cout << "left:" << left << '\n';
           if (left > 0) {
             while (fsz<left) {
               sz = read(fd, dataBuf, sz);
@@ -246,6 +233,8 @@ void *https_server(void *args) {
               memset(dataBuf, 0, sizeof(dataBuf));
             }
           } else {
+            int right = atoi(range2);
+            std::cout << "right:" << right << '\n';
             int range = 1;
             fsz = left;
             while (fsz <= right) {
@@ -264,13 +253,14 @@ void *https_server(void *args) {
               "HTTP/1.1 200 OK\r\n"
               "\r\n";
           SSL_write(ssl, (void *)buf_w.c_str(), buf_w.size());
+          printf("[+]状态码：200 OK\r\n");
           char acBuf[1024] = {0};
           int sz = 1024;
           while (sz = read(fd, acBuf, sz)) {
             SSL_write(ssl, acBuf, sz);
-            memset(acBuf, 0, sizeof(acBuf));
+            // std::cout << "acBuf:" << acBuf << '\n';
           }
-          printf("[+]状态码：200 OK\r\n");
+          
           printf(
               "------------------------HTTPS服务器成功响应,"
               "返回了所请求的HTML信息！--"
