@@ -161,6 +161,10 @@ void *https_server(void *args) {
     string uri = p;
     uri = uri.substr(1, uri.length());
 
+    //取出请求的文件类型
+    char *filetype = strtok(p, ".");
+    filetype = strtok(NULL, ".");
+
     //给客户发送网页	后续可以根据具体请求，转向不同页面
     strcpy(filePath, uri.c_str());
     // std::cout << "url:" << filePath << '\n';
@@ -196,13 +200,13 @@ void *https_server(void *args) {
         char *range1;
         char *range2;
         int re = exist_range(&range1, &range2);
-        int left = atoi(range1);
-        int right;
-        if (range2 != NULL) {
-          right = atoi(range2);
-        }
 
-        if (re == 1) {
+        if (re == 1 && strcmp(filetype, "mp4") != 0) {
+          int left = atoi(range1);
+          int right;
+          if (range2 != NULL) {
+            right = atoi(range2);
+          }
           char dataBuf[1024] = {0};
 
           std::string buf_w =
@@ -238,10 +242,10 @@ void *https_server(void *args) {
             fsz = left;
             while (fsz <= right) {
               range = read(fd, dataBuf, range);
-              std::cout << "dataBuf:" << dataBuf << '\n';
+              // std::cout << "dataBuf:" << dataBuf << '\n';
               SSL_write(ssl, dataBuf, range);
               fsz = fsz + range;
-              std::cout << "range:" << range << '\n';
+              // std::cout << "range:" << range << '\n';
             }
           }
           sleep(2);
